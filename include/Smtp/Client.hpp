@@ -8,6 +8,7 @@
  * © 2019 by Richard Walters
  */
 
+#include <functional>
 #include <future>
 #include <memory>
 #include <MessageHeaders/MessageHeaders.hpp>
@@ -20,6 +21,192 @@ namespace Smtp {
      * Protocol (SMTP -- [RFC 5321](https://tools.ietf.org/html/rfc5321).
      */
     class Client {
+        // Types
+    public:
+        /**
+         * This is used to keep track of the progression of the SMTP protocol.
+         */
+        enum class ProtocolStage {
+            /**
+             * In this stage, the client is waiting for the server greeting.
+             */
+            Greeting,
+
+            /**
+             * In this stage, the client is waiting for the server to respond to
+             * the client's EHLO.
+             */
+            HelloResponse,
+
+            /**
+             * In this stage, the client is waiting for the server to finish
+             * providing all the options it supports.
+             */
+            Options,
+
+            /**
+             * In this stage, the client is ready to send the next message.
+             */
+            ReadyToSend,
+
+            /**
+             * In this stage, the client is waiting for the server to accept
+             * the sender address.
+             */
+            DeclaringSender,
+
+            /**
+             * In this stage, the client is waiting for the server to accept
+             * the recipient addresses.
+             */
+            DeclaringRecipients,
+
+            /**
+             * In this stage, the client is waiting for the server to give
+             * the go-ahead to receive the message headers and body.
+             */
+            SendingData,
+
+            /**
+             * In this stage, the client is waiting for the server to give
+             * the final response about sending the e-mail.
+             */
+            AwaitingSendResponse,
+        };
+
+        /**
+         * This is used to hold onto the pieces of a disassembled message
+         * received from an SMTP server.
+         */
+        struct ParsedMessage {
+            /**
+             * This is the 3-digit code provided by the server that gives
+             * the program a general indication of the server/protocol status.
+             */
+            int code = 0;
+
+            /**
+             * This indicates whether or not the server indicated that this is
+             * the last line it will send in the current protocol stage.
+             */
+            bool last = false;
+
+            /**
+             * This is a human-readable string provided with the message that
+             * can be delivered to the user to explain what's going on.
+             */
+            std::string text;
+        };
+
+        /**
+         * Forward-declare the SMTP extension class so that MessageContext can
+         * use it.
+         */
+        class Extension;
+
+        /**
+         * This holds any information that needs to be shared between the
+         * protocol handler and any extensions.
+         */
+        struct MessageContext {
+            /**
+             * This tracks the progress of the communication with the SMTP
+             * server.
+             */
+            ProtocolStage protocolStage = ProtocolStage::Greeting;
+        };
+
+        /**
+         * This is the interface any extensions need to implement in order to
+         * plug into this protocol handler.
+         */
+        class Extension {
+            // Methods
+        public:
+            /**
+             * Allow the extension to modify the given message about to be sent
+             * from the client to the server.
+             *
+             * @param[in] context
+             *     This holds any information that needs to be shared between
+             *     the protocol handler and the extension.
+             *
+             * @param[in] input
+             *     This is the message about to the sent from the client
+             *     to the server.  The newline at the end is not included.
+             *
+             * @return
+             *     The input message, possibly modified by the extension,
+             *     is returned.  The newline at the end is not included.
+             */
+            virtual std::string ModifyMessage(
+                const MessageContext& context,
+                const std::string& input
+            );
+
+            /**
+             * Ask the extension whether or not it wants to handle a custom
+             * protocol step at the current time.
+             *
+             * @param[in] context
+             *     This holds any information that needs to be shared between
+             *     the protocol handler and the extension.
+             *
+             * @return
+             *     An indication of whether or not the extension wants to
+             *     handle a custom protocol step at the current time
+             *     is returned.
+             */
+            virtual bool IsExtraProtocolStageNeededHere(
+                const MessageContext& context
+            );
+
+            /**
+             * Tell the extension that it should proceed in its custom
+             * protocol stage.
+             *
+             * @param[in] onSendMessage
+             *     This is a function the extension can call to send
+             *     data directly to the SMTP server.
+             *
+             * @param[in] onSoftFailure
+             *     This is a function the extension can call to let the
+             *     SMTP client know that the current message failed to be
+             *     sent, and the protocol should go back to the "ready to
+             *     send" stage.
+             *
+             * @param[in] onStageComplete
+             *     This is a function the extension can call to let the
+             *     SMTP client know that the custom procotol stage is
+             *     complete, and the client may proceed to the next stage.
+             */
+            virtual void GoAhead(
+                std::function< void(const std::string& data) > onSendMessage,
+                std::function< void() > onSoftFailure,
+                std::function< void() > onStageComplete
+            );
+
+            /**
+             * Give the extension the opportunity to modify a message that
+             * is about to be sent to the SMTP server.
+             *
+             * @param[in] context
+             *     This holds any information that needs to be shared between
+             *     the protocol handler and the extension.
+             *
+             * @param[in] message
+             *     This is the message the extension is being asked to modify.
+             *
+             * @return
+             *     The input message, possibly modified by the extension,
+             *     is returned.
+             */
+            virtual bool HandleServerMessage(
+                const MessageContext& context,
+                const ParsedMessage& message
+            );
+        };
+
         // Lifecycle management
     public:
         ~Client() noexcept;
@@ -44,6 +231,23 @@ namespace Smtp {
          *     (CA) certificates to trust, in PEM format.
          */
         void EnableTls(const std::string& caCerts);
+
+        /**
+         * Provide the implementation of an SMTP extension to be used (if the
+         * server supports it) in any subsequent connection.
+         *
+         * @param[in] extensionName
+         *     This is the name used by the SMTP server to identify the
+         *     extension.
+         *
+         * @param[in] extensionImplementation
+         *     This is the object which implements the extension being
+         *     registered.
+         */
+        void RegisterExtension(
+            const std::string& extensionName,
+            std::shared_ptr< Extension > extensionImplementation
+        );
 
         /**
          * Asynchronously initiate a connection to an SMTP server.

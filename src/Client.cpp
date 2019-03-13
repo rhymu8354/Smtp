@@ -7,10 +7,13 @@
  */
 
 #include <chrono>
+#include <functional>
 #include <future>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <set>
 #include <Smtp/Client.hpp>
 #include <stddef.h>
 #include <stdio.h>
@@ -26,78 +29,36 @@ namespace {
      */
     constexpr std::chrono::milliseconds TLS_HANDSHAKE_TIMEOUT = std::chrono::milliseconds(1000);
 
-    /**
-     * This is used to keep track of the progression of the SMTP protocol.
-     */
-    enum class ProtocolStage {
-        /**
-         * In this stage, the client is waiting for the server greeting.
-         */
-        Greeting,
-
-        /**
-         * In this stage, the client is waiting for the server to finish
-         * providing all the options it supports.
-         */
-        Options,
-
-        /**
-         * In this stage, the client is ready to send the next message.
-         */
-        ReadyToSend,
-
-        /**
-         * In this stage, the client is waiting for the server to accept
-         * the sender address.
-         */
-        DeclaringSender,
-
-        /**
-         * In this stage, the client is waiting for the server to accept
-         * the recipient addresses.
-         */
-        DeclaringRecipients,
-
-        /**
-         * In this stage, the client is waiting for the server to give
-         * the go-ahead to receive the message headers and body.
-         */
-        SendingData,
-
-        /**
-         * In this stage, the client is waiting for the server to give
-         * the final response about sending the e-mail.
-         */
-        AwaitingSendResponse,
-    };
-
-    /**
-     * This is used to hold onto the pieces of a disassembled message
-     * received from an SMTP server.
-     */
-    struct ParsedMessage {
-        /**
-         * This is the 3-digit code provided by the server that gives
-         * the program a general indication of the server/protocol status.
-         */
-        int code = 0;
-
-        /**
-         * This indicates whether or not the server indicated that this is
-         * the last line it will send in the current protocol stage.
-         */
-        bool last = false;
-
-        /**
-         * This is a human-readable string provided with the message that
-         * can be delivered to the user to explain what's going on.
-         */
-        std::string text;
-    };
-
 }
 
 namespace Smtp {
+
+    std::string Client::Extension::ModifyMessage(
+        const MessageContext& context,
+        const std::string& input
+    ) {
+        return input;
+    }
+
+    bool Client::Extension::IsExtraProtocolStageNeededHere(
+        const MessageContext& context
+    ) {
+        return false;
+    }
+
+    void Client::Extension::GoAhead(
+        std::function< void(const std::string& data) > onSendMessage,
+        std::function< void() > onSoftFailure,
+        std::function< void() > onStageComplete
+    ) {
+    }
+
+    bool Client::Extension::HandleServerMessage(
+        const MessageContext& context,
+        const ParsedMessage& message
+    ) {
+        return false;
+    }
 
     /**
      * This contains the private properties of a Client instance.
@@ -116,6 +77,17 @@ namespace Smtp {
          * when accessed simultaneously by multiple threads.
          */
         std::mutex mutex;
+
+        /**
+         * These are the SMTP extensions registered for use by the client.
+         */
+        std::map< std::string, std::shared_ptr< Extension > > extensions;
+
+        /**
+         * These are the names of the SMTP extensions that the server supports
+         * and that the client has registered.
+         */
+        std::set< std::string > supportedExtensionNames;
 
         /**
          * This is the interface to the next layer down in protocols
@@ -153,15 +125,23 @@ namespace Smtp {
         std::promise< bool > sendCompleted;
 
         /**
-         * This tracks the progress of the communication with the SMTP server.
-         */
-        ProtocolStage protocolStage = ProtocolStage::Greeting;
-
-        /**
          * This holds any data received from the server, before that data
          * has been chopped up into lines.
          */
         std::vector< uint8_t > dataReceived;
+
+        /**
+         * This holds any information that needs to be shared between the
+         * protocol handler and any extensions.
+         */
+        MessageContext currentMessageContext;
+
+        /**
+         * If this is not nullptr, it points to the SMTP extension which is
+         * currently talking to the SMTP server.  In essence, the extension
+         * is runnings its own "protocol stage".
+         */
+        std::shared_ptr< Extension > activeExtension;
 
         /**
          * This is a copy of the headers for the e-mail currently being sent.
@@ -221,14 +201,64 @@ namespace Smtp {
         }
 
         /**
+         * Move the client the next stage in the SMTP protocol.  Give supported
+         * extensions the opportunity to run their own stages if they want.
+         *
+         * @param[in] nextProtocolStage
+         *     This is the next stage in the SMTP protocol.
+         */
+        void TransitionProtocolStage(Client::ProtocolStage nextProtocolStage) {
+            activeExtension = nullptr;
+            currentMessageContext.protocolStage = nextProtocolStage;
+            for (const auto& supportedExtensionName: supportedExtensionNames) {
+                const auto extension = extensions[supportedExtensionName];
+                if (
+                    extension->IsExtraProtocolStageNeededHere(
+                        currentMessageContext
+                    )
+                ) {
+                    activeExtension = extension;
+                    activeExtension->GoAhead(
+                        std::bind(&Impl::SendMessageDirectly, this, std::placeholders::_1),
+                        std::bind(&Impl::OnSoftFailure, this),
+                        std::bind(&Impl::OnExtensionStageComplete, this)
+                    );
+                    break;
+                }
+            }
+            if (
+                (currentMessageContext.protocolStage == Client::ProtocolStage::ReadyToSend)
+                && (activeExtension == nullptr)
+            ) {
+                auto promises = SwapOutMessageReadyPromises();
+                for (auto& promise: promises) {
+                    promise.set_value();
+                }
+            }
+        }
+
+        /**
          * Handle a message ready in communication with the SMTP server.
          */
         void OnMessageReady() {
-            protocolStage = ProtocolStage::ReadyToSend;
-            auto promises = SwapOutMessageReadyPromises();
-            for (auto& promise: promises) {
-                promise.set_value();
-            }
+            TransitionProtocolStage(Client::ProtocolStage::ReadyToSend);
+        }
+
+        /**
+         * React to the failure to send an e-mail through the SMTP server,
+         * where the connection is still kept alive and the client can
+         * attempt another transaction if it wants to.
+         */
+        void OnSoftFailure() {
+            sendCompleted.set_value(false);
+            OnMessageReady();
+        }
+
+        /**
+         * Move on to the next protocol stage after an extension took a turn.
+         */
+        void OnExtensionStageComplete() {
+            TransitionProtocolStage(currentMessageContext.protocolStage);
         }
 
         /**
@@ -298,10 +328,10 @@ namespace Smtp {
          */
         bool DisassembleMessagesReceived(
             const std::vector< std::string >& lines,
-            std::vector< ParsedMessage >& parsedMessages
+            std::vector< Client::ParsedMessage >& parsedMessages
         ) {
             for (const auto& line: lines) {
-                ParsedMessage parsedMessage;
+                Client::ParsedMessage parsedMessage;
                 if (
                     (line.length() < 4)
                     || (sscanf(line.c_str(), "%d", &parsedMessage.code) != 1)
@@ -332,18 +362,42 @@ namespace Smtp {
         }
 
         /**
-         * Send the given message to the SMTP server.
+         * Send the given message to the SMTP server without processing it
+         * with any extensions.
          *
          * @param[in] message
-         *     This is the message to send.
+         *     This is the message to send.  Each line of the message should
+         *     have a newline at the end.
          */
-        void SendMessage(const std::string& message) {
+        void SendMessageDirectly(const std::string& message) {
             serverConnection->SendMessage(
                 std::vector< uint8_t >(
                     message.begin(),
                     message.end()
                 )
             );
+        }
+
+        /**
+         * Process the given message through all supported and registered
+         * extensions, and then send it to the SMTP server.
+         *
+         * @note
+         *     A newline is added to the processed message before it's sent.
+         *
+         * @param[in] input
+         *     This is the message to be processed and then sent.  It does not
+         *     have a newline at the end.
+         */
+        void SendMessageThroughExtensions(const std::string& input) {
+            std::string output(input);
+            for (const auto& supportedExtensionName: supportedExtensionNames) {
+                output = extensions[supportedExtensionName]->ModifyMessage(
+                    currentMessageContext,
+                    output
+                );
+            }
+            SendMessageDirectly(output + "\r\n");
         }
 
         /**
@@ -363,11 +417,37 @@ namespace Smtp {
                 return;
             }
             for (const auto& parsedMessage: parsedMessages) {
-                switch (protocolStage) {
+                if (activeExtension) {
+                    if (
+                        activeExtension->HandleServerMessage(
+                            currentMessageContext,
+                            parsedMessage
+                        )
+                    ) {
+                        continue;
+                    } else {
+                        OnFailure();
+                        return;
+                    }
+                }
+                switch (currentMessageContext.protocolStage) {
                     case ProtocolStage::Greeting: {
                         if (parsedMessage.code == 220) {
-                            SendMessage("EHLO alex.example.com\r\n");
-                            protocolStage = ProtocolStage::Options;
+                            SendMessageDirectly("EHLO alex.example.com\r\n");
+                            TransitionProtocolStage(ProtocolStage::Options);
+                        } else {
+                            OnFailure();
+                            return;
+                        }
+                    } break;
+
+                    case ProtocolStage::HelloResponse: {
+                        if (parsedMessage.code == 250) {
+                            if (parsedMessage.last) {
+                                OnMessageReady();
+                            } else {
+                                TransitionProtocolStage(ProtocolStage::Options);
+                            }
                         } else {
                             OnFailure();
                             return;
@@ -376,6 +456,17 @@ namespace Smtp {
 
                     case ProtocolStage::Options: {
                         if (parsedMessage.code == 250) {
+                            auto delimiter = parsedMessage.text.find(' ');
+                            if (delimiter == std::string::npos) {
+                                delimiter = parsedMessage.text.length();
+                            }
+                            const auto supportedExtensionName = parsedMessage.text.substr(
+                                0,
+                                delimiter
+                            );
+                            if (extensions.find(supportedExtensionName) != extensions.end()) {
+                                (void)supportedExtensionNames.insert(supportedExtensionName);
+                            }
                             if (parsedMessage.last) {
                                 OnMessageReady();
                             }
@@ -387,43 +478,39 @@ namespace Smtp {
 
                     case ProtocolStage::DeclaringSender: {
                         if (parsedMessage.code == 250) {
-                            protocolStage = ProtocolStage::DeclaringRecipients;
+                            TransitionProtocolStage(ProtocolStage::DeclaringRecipients);
                             for (const auto& recipient: headers.GetHeaderMultiValue("To")) {
                                 recipients.push(recipient);
                             }
                             AnnounceNextRecipient();
                         } else {
-                            sendCompleted.set_value(false);
-                            OnMessageReady();
+                            OnSoftFailure();
                             return;
                         }
                     } break;
 
                     case ProtocolStage::DeclaringRecipients: {
                         if (parsedMessage.code == 250) {
-                            protocolStage = ProtocolStage::DeclaringRecipients;
                             if (recipients.empty()) {
-                                SendMessage("DATA\r\n");
-                                protocolStage = ProtocolStage::SendingData;
+                                SendMessageThroughExtensions("DATA");
+                                TransitionProtocolStage(ProtocolStage::SendingData);
                             } else {
                                 AnnounceNextRecipient();
                             }
                         } else {
-                            sendCompleted.set_value(false);
-                            OnMessageReady();
+                            OnSoftFailure();
                             return;
                         }
                     } break;
 
                     case ProtocolStage::SendingData: {
                         if (parsedMessage.code == 354) {
-                            protocolStage = ProtocolStage::AwaitingSendResponse;
-                            SendMessage(headers.GenerateRawHeaders());
-                            SendMessage(body);
-                            SendMessage(".\r\n");
+                            TransitionProtocolStage(ProtocolStage::AwaitingSendResponse);
+                            SendMessageDirectly(headers.GenerateRawHeaders());
+                            SendMessageDirectly(body);
+                            SendMessageDirectly(".\r\n");
                         } else {
-                            sendCompleted.set_value(false);
-                            OnMessageReady();
+                            OnSoftFailure();
                             return;
                         }
                     } break;
@@ -548,9 +635,9 @@ namespace Smtp {
         void AnnounceNextRecipient() {
             const auto nextRecipient = recipients.front();
             recipients.pop();
-            SendMessage(
+            SendMessageThroughExtensions(
                 SystemAbstractions::sprintf(
-                    "RCPT TO:<%s>\r\n",
+                    "RCPT TO:<%s>",
                     nextRecipient.c_str()
                 )
             );
@@ -569,6 +656,13 @@ namespace Smtp {
     void Client::EnableTls(const std::string& caCerts) {
         impl_->useTls = true;
         impl_->caCerts = caCerts;
+    }
+
+    void Client::RegisterExtension(
+        const std::string& extensionName,
+        std::shared_ptr< Extension > extensionImplementation
+    ) {
+        impl_->extensions[extensionName] = extensionImplementation;
     }
 
     std::future< bool > Client::Connect(
@@ -600,18 +694,18 @@ namespace Smtp {
         std::lock_guard< decltype(impl_->mutex) > lock(impl_->mutex);
         impl_->sendCompleted = std::promise< bool >();
         if (
-            (impl_->protocolStage == ProtocolStage::ReadyToSend)
+            (impl_->currentMessageContext.protocolStage == ProtocolStage::ReadyToSend)
             && (headers.HasHeader("From"))
         ) {
             impl_->headers = headers;
             impl_->body = body;
-            impl_->SendMessage(
+            impl_->SendMessageThroughExtensions(
                 SystemAbstractions::sprintf(
-                    "MAIL FROM:<%s>\r\n",
+                    "MAIL FROM:<%s>",
                     headers.GetHeaderValue("From").c_str()
                 )
             );
-            impl_->protocolStage = ProtocolStage::DeclaringSender;
+            impl_->TransitionProtocolStage(Client::ProtocolStage::DeclaringSender);
         } else {
             impl_->sendCompleted.set_value(false);
         }

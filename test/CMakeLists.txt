@@ -7,6 +7,9 @@ set(This SmtpTests)
 
 set(Sources
     src/ClientTests.cpp
+    src/Common.cpp
+    src/Common.hpp
+    src/ExtensionTests.cpp
 )
 
 add_executable(${This} ${Sources})
