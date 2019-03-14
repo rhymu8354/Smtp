@@ -48,8 +48,7 @@ namespace Smtp {
 
     void Client::Extension::GoAhead(
         std::function< void(const std::string& data) > onSendMessage,
-        std::function< void() > onSoftFailure,
-        std::function< void() > onStageComplete
+        std::function< void(bool success) > onStageComplete
     ) {
     }
 
@@ -220,8 +219,7 @@ namespace Smtp {
                     activeExtension = extension;
                     activeExtension->GoAhead(
                         std::bind(&Impl::SendMessageDirectly, this, std::placeholders::_1),
-                        std::bind(&Impl::OnSoftFailure, this),
-                        std::bind(&Impl::OnExtensionStageComplete, this)
+                        std::bind(&Impl::OnExtensionStageComplete, this, std::placeholders::_1)
                     );
                     break;
                 }
@@ -252,10 +250,19 @@ namespace Smtp {
         }
 
         /**
-         * Move on to the next protocol stage after an extension took a turn.
+         * Move on to the next protocol stage, or complete the transaction
+         * with a failure.
+         *
+         * @param[in] success
+         *     This indicates whether or not the transaction can proceed
+         *     to the next stage.
          */
-        void OnExtensionStageComplete() {
-            TransitionProtocolStage(currentMessageContext.protocolStage);
+        void OnExtensionStageComplete(bool success) {
+            if (success) {
+                TransitionProtocolStage(currentMessageContext.protocolStage);
+            } else {
+                OnSoftFailure();
+            }
         }
 
         /**

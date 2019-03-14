@@ -46,8 +46,7 @@ namespace {
 
         bool performedExtraStage = false;
         std::function< void(const std::string& data) > onSendMessage;
-        std::function< void() > onSoftFailure;
-        std::function< void() > onStageComplete;
+        std::function< void(bool success) > onStageComplete;
 
         // Smtp::Client::Extension
 
@@ -73,11 +72,9 @@ namespace {
 
         virtual void GoAhead(
             std::function< void(const std::string& data) > onSendMessage,
-            std::function< void() > onSoftFailure,
-            std::function< void() > onStageComplete
+            std::function< void(bool success) > onStageComplete
         ) override {
             this->onSendMessage = onSendMessage;
-            this->onSoftFailure = onSoftFailure;
             this->onStageComplete = onStageComplete;
             onSendMessage("PogChamp\r\n");
         }
@@ -89,7 +86,7 @@ namespace {
             if (message.code != 250) {
                 return false;
             }
-            onStageComplete();
+            onStageComplete(true);
             return true;
         }
     };
@@ -102,8 +99,7 @@ namespace {
         bool softFailureOnServerMessage = false;
         bool performedExtraStage = false;
         std::function< void(const std::string& data) > onSendMessage;
-        std::function< void() > onSoftFailure;
-        std::function< void() > onStageComplete;
+        std::function< void(bool success) > onStageComplete;
 
         // Smtp::Client::Extension
 
@@ -129,11 +125,9 @@ namespace {
 
         virtual void GoAhead(
             std::function< void(const std::string& data) > onSendMessage,
-            std::function< void() > onSoftFailure,
-            std::function< void() > onStageComplete
+            std::function< void(bool success) > onStageComplete
         ) override {
             this->onSendMessage = onSendMessage;
-            this->onSoftFailure = onSoftFailure;
             this->onStageComplete = onStageComplete;
         }
 
@@ -141,10 +135,7 @@ namespace {
             const Smtp::Client::MessageContext& context,
             const Smtp::Client::ParsedMessage& message
         ) override {
-            if (softFailureOnServerMessage) {
-                onSoftFailure();
-            }
-            onStageComplete();
+            onStageComplete(!softFailureOnServerMessage);
             return true;
         }
     };

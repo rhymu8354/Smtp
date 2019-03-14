@@ -178,12 +178,13 @@ namespace Smtp {
              * @param[in] onStageComplete
              *     This is a function the extension can call to let the
              *     SMTP client know that the custom procotol stage is
-             *     complete, and the client may proceed to the next stage.
+             *     complete.  The parameter indicates whether or not the
+             *     client may proceed to the next stage.
+             *
              */
             virtual void GoAhead(
                 std::function< void(const std::string& data) > onSendMessage,
-                std::function< void() > onSoftFailure,
-                std::function< void() > onStageComplete
+                std::function< void(bool success) > onStageComplete
             );
 
             /**
