@@ -68,7 +68,15 @@ namespace Smtp {
     {
         // Types
 
-        using EventPromises = std::vector< std::promise< void > >;
+        /**
+         * This is the type of collection which holds onto promises made
+         * to be completed when either the SMTP client and server are ready
+         * to process the next message, or the connection has been broken.
+         *
+         * The value set in the promise will be false if the connection
+         * has been broken.
+         */
+        using ReadyOrBrokenPromises = std::vector< std::promise< bool > >;
 
         // Properties
 
@@ -109,15 +117,11 @@ namespace Smtp {
         std::string caCerts;
 
         /**
-         * This holds any promises made to publish any failure event.
-         */
-        EventPromises failurePromises;
-
-        /**
          * This holds any promises made to publish the fact that the SMTP
-         * client and server are both ready to handle the next message.
+         * client and server are both ready to handle the next message,
+         * or that the connection has been broken.
          */
-        EventPromises messageReadyPromises;
+        ReadyOrBrokenPromises readyOrBrokenPromises;
 
         /**
          * This is set when the SMTP client is finished sending an e-mail.
@@ -160,44 +164,40 @@ namespace Smtp {
         std::queue< std::string > recipients;
 
         /**
-         * Take the current failure promises and return them, placing
+         * Take the current ready-or-broken promises and return them, placing
          * an empty collection in its place.
          *
          * @return
-         *     The failure promises that were previously registered
+         *     The ready-or-broken promises that were previously registered
          *     are returned.
          */
-        EventPromises SwapOutFailurePromises() {
+        ReadyOrBrokenPromises SwapOutReadyOrBrokenPromises() {
             std::lock_guard< decltype(mutex) > lock(mutex);
-            EventPromises promisesReturned;
-            promisesReturned.swap(failurePromises);
+            ReadyOrBrokenPromises promisesReturned;
+            promisesReturned.swap(readyOrBrokenPromises);
             return promisesReturned;
         }
 
         /**
          * Handle a failure in communication with the SMTP server.
          */
-        void OnFailure() {
-            auto promises = SwapOutFailurePromises();
+        void OnHardFailure() {
+            auto promises = SwapOutReadyOrBrokenPromises();
             for (auto& promise: promises) {
-                promise.set_value();
+                promise.set_value(false);
             }
             serverConnection->Close();
         }
 
         /**
-         * Take the current message ready promises and return them, placing
-         * an empty collection in its place.
-         *
-         * @return
-         *     The message ready promises that were previously registered
-         *     are returned.
+         * Handle the condition where the SMTP client and server are both ready
+         * to process the next message.
          */
-        EventPromises SwapOutMessageReadyPromises() {
-            std::lock_guard< decltype(mutex) > lock(mutex);
-            EventPromises promisesReturned;
-            promisesReturned.swap(messageReadyPromises);
-            return promisesReturned;
+        void OnReady() {
+            auto promises = SwapOutReadyOrBrokenPromises();
+            for (auto& promise: promises) {
+                promise.set_value(true);
+            }
         }
 
         /**
@@ -230,10 +230,7 @@ namespace Smtp {
                 (currentMessageContext.protocolStage == Client::ProtocolStage::ReadyToSend)
                 && (activeExtension == nullptr)
             ) {
-                auto promises = SwapOutMessageReadyPromises();
-                for (auto& promise: promises) {
-                    promise.set_value();
-                }
+                OnReady();
             }
         }
 
@@ -336,7 +333,7 @@ namespace Smtp {
                     (line.length() < 4)
                     || (sscanf(line.c_str(), "%d", &parsedMessage.code) != 1)
                 ) {
-                    OnFailure();
+                    OnHardFailure();
                     return false;
                 }
                 switch (line[3]) {
@@ -351,7 +348,7 @@ namespace Smtp {
                     }
 
                     default: {
-                        OnFailure();
+                        OnHardFailure();
                         return false;
                     }
                 }
@@ -426,7 +423,7 @@ namespace Smtp {
                     ) {
                         continue;
                     } else {
-                        OnFailure();
+                        OnHardFailure();
                         return;
                     }
                 }
@@ -436,7 +433,7 @@ namespace Smtp {
                             SendMessageDirectly("EHLO alex.example.com\r\n");
                             TransitionProtocolStage(ProtocolStage::Options);
                         } else {
-                            OnFailure();
+                            OnHardFailure();
                             return;
                         }
                     } break;
@@ -449,7 +446,7 @@ namespace Smtp {
                                 TransitionProtocolStage(ProtocolStage::Options);
                             }
                         } else {
-                            OnFailure();
+                            OnHardFailure();
                             return;
                         }
                     } break;
@@ -471,7 +468,7 @@ namespace Smtp {
                                 OnMessageReady();
                             }
                         } else {
-                            OnFailure();
+                            OnHardFailure();
                             return;
                         }
                     } break;
@@ -521,7 +518,7 @@ namespace Smtp {
                     } break;
 
                     default: {
-                        OnFailure();
+                        OnHardFailure();
                         return;
                     }
                 }
@@ -537,7 +534,7 @@ namespace Smtp {
          *     without being reset by the peer.
          */
         void OnBroken(bool graceful) {
-            OnFailure();
+            OnHardFailure();
         }
 
         /**
@@ -712,18 +709,11 @@ namespace Smtp {
         return impl_->sendCompleted.get_future();
     }
 
-    std::future< void > Client::GetFailureFuture() {
+    std::future< bool > Client::GetReadyOrBrokenFuture() {
         std::lock_guard< decltype(impl_->mutex) > lock(impl_->mutex);
-        impl_->failurePromises.push_back(std::promise< void >());
-        auto& newFailurePromise = impl_->failurePromises.back();
-        return newFailurePromise.get_future();
-    }
-
-    std::future< void > Client::GetMessageReadyBeSentFuture() {
-        std::lock_guard< decltype(impl_->mutex) > lock(impl_->mutex);
-        impl_->messageReadyPromises.push_back(std::promise< void >());
-        auto& newMessageReadyPromise = impl_->messageReadyPromises.back();
-        return newMessageReadyPromise.get_future();
+        impl_->readyOrBrokenPromises.push_back(std::promise< bool >());
+        auto& newReadyOrBrokenPromise = impl_->readyOrBrokenPromises.back();
+        return newReadyOrBrokenPromise.get_future();
     }
 
 }

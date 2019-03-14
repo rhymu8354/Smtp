@@ -299,24 +299,17 @@ namespace Smtp {
         );
 
         /**
-         * Return a future that is set if any exchange with the SMTP
-         * server fails.
-         *
-         * @return
-         *     A future that is set if any exchange with the SMTP
-         *     server fails is returned.
-         */
-        std::future< void > GetFailureFuture();
-
-        /**
          * Return a future that is set once the SMTP client and server
-         * are ready to process the next message.
+         * are ready to process the next message, or the connection is
+         * broken.
          *
          * @return
          *     A future that is set once the SMTP client and server
-         *     are ready to process the next message is returned.
+         *     are ready to process the next message, or the connection
+         *     is broken, is returned.  The value returned from the future
+         *     is false in the case of the connection being broken.
          */
-        std::future< void > GetMessageReadyBeSentFuture();
+        std::future< bool > GetReadyOrBrokenFuture();
 
         // Private properties
     private:

@@ -83,7 +83,7 @@ namespace SmtpTests {
     TEST_F(ClientTests, GreetingSuccess) {
         StartServer(false);
         ASSERT_TRUE(EstablishConnection(false));
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto& connection = *clients[0].connection;
         SendTextMessage(
             connection,
@@ -96,26 +96,25 @@ namespace SmtpTests {
             }),
             messages
         );
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ClientTests, GreetingFailure) {
         StartServer(false);
         ASSERT_TRUE(EstablishConnection(false));
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto& connection = *clients[0].connection;
         SendTextMessage(
             connection,
             "554 Go away you silly person\r\n"
         );
-        EXPECT_TRUE(FutureReady(failureOccurred, std::chrono::milliseconds(1000)));
+        EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
     }
 
     TEST_F(ClientTests, OptionsSuccess) {
         StartServer(false);
         ASSERT_TRUE(EstablishConnection(false));
-        auto failureOccurred = client.GetFailureFuture();
-        auto messageReadyToBeSent = client.GetMessageReadyBeSentFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto& connection = *clients[0].connection;
         SendTextMessage(
             connection,
@@ -126,17 +125,16 @@ namespace SmtpTests {
         SendTextMessage(connection, "250-8BITMIME\r\n");
         SendTextMessage(connection, "250-SIZE\r\n");
         SendTextMessage(connection, "250-DSN\r\n");
-        EXPECT_FALSE(FutureReady(messageReadyToBeSent, std::chrono::milliseconds(100)));
+        EXPECT_FALSE(FutureReady(readyOrBroken, std::chrono::milliseconds(100)));
         SendTextMessage(connection, "250 HELP\r\n");
-        EXPECT_TRUE(FutureReady(messageReadyToBeSent, std::chrono::milliseconds(1000)));
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
+        EXPECT_TRUE(readyOrBroken.get());
     }
 
     TEST_F(ClientTests, OptionsFailure) {
         StartServer(false);
         ASSERT_TRUE(EstablishConnection(false));
-        auto failureOccurred = client.GetFailureFuture();
-        auto messageReadyToBeSent = client.GetMessageReadyBeSentFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto& connection = *clients[0].connection;
         SendTextMessage(
             connection,
@@ -144,12 +142,12 @@ namespace SmtpTests {
         );
         (void)AwaitMessages(0, 1);
         SendTextMessage(connection, "550 Go away, you smell\r\n");
-        EXPECT_TRUE(FutureReady(failureOccurred, std::chrono::milliseconds(1000)));
-        EXPECT_FALSE(FutureReady(messageReadyToBeSent));
+        EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
+        EXPECT_FALSE(readyOrBroken.get());
     }
 
     TEST_F(ClientTests, SendMailFromSent) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         ASSERT_TRUE(EstablishConnectionPrepareToSend());
         MessageHeaders::MessageHeaders headers;
         headers.AddHeader("From", "alex@example.com");
@@ -165,11 +163,11 @@ namespace SmtpTests {
             messages
         );
         EXPECT_FALSE(FutureReady(sendWasCompleted));
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ClientTests, SendMailFromAccepted) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto sendWasCompleted = StartSendingEmail();
         auto& connection = *clients[0].connection;
         SendTextMessage(connection, "250 OK\r\n");
@@ -181,21 +179,21 @@ namespace SmtpTests {
             messages
         );
         EXPECT_FALSE(FutureReady(sendWasCompleted, std::chrono::milliseconds(100)));
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ClientTests, SendMailFromRejected) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto sendWasCompleted = StartSendingEmail();
         auto& connection = *clients[0].connection;
         SendTextMessage(connection, "550 Go away, you smell\r\n");
         EXPECT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_FALSE(sendWasCompleted.get());
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ClientTests, SendMailFirstRecipientAccepted) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto sendWasCompleted = StartSendingEmail();
         auto& connection = *clients[0].connection;
         SendTextMessage(connection, "250 OK\r\n"); // response to MAIL FROM:<alex@example.com>
@@ -209,11 +207,11 @@ namespace SmtpTests {
             messages
         );
         EXPECT_FALSE(FutureReady(sendWasCompleted, std::chrono::milliseconds(100)));
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ClientTests, SendMailFirstRecipientRejected) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto sendWasCompleted = StartSendingEmail();
         auto& connection = *clients[0].connection;
         SendTextMessage(connection, "250 OK\r\n"); // response to MAIL FROM:<alex@example.com>
@@ -221,11 +219,11 @@ namespace SmtpTests {
         SendTextMessage(connection, "550 No such user here\r\n"); // response to RCPT TO:<bob@example.com>
         EXPECT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_FALSE(sendWasCompleted.get());
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ClientTests, SendMailAllRecipientsAccepted) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto sendWasCompleted = StartSendingEmail();
         auto& connection = *clients[0].connection;
         SendTextMessage(connection, "250 OK\r\n"); // response to MAIL FROM:<alex@example.com>
@@ -241,11 +239,11 @@ namespace SmtpTests {
             messages
         );
         EXPECT_FALSE(FutureReady(sendWasCompleted, std::chrono::milliseconds(100)));
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ClientTests, SendMailSecondRecipientsRejected) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto sendWasCompleted = StartSendingEmail();
         auto& connection = *clients[0].connection;
         SendTextMessage(connection, "250 OK\r\n"); // response to MAIL FROM:<alex@example.com>
@@ -255,11 +253,11 @@ namespace SmtpTests {
         SendTextMessage(connection, "550 No such user\r\n"); // response to RCPT TO:<carol@example.com>
         EXPECT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_FALSE(sendWasCompleted.get());
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ClientTests, SendMailDataGoAhead) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto sendWasCompleted = StartSendingEmail();
         auto& connection = *clients[0].connection;
         SendTextMessage(connection, "250 OK\r\n"); // response to MAIL FROM:<alex@example.com>
@@ -284,11 +282,11 @@ namespace SmtpTests {
             messages
         );
         EXPECT_FALSE(FutureReady(sendWasCompleted, std::chrono::milliseconds(100)));
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ClientTests, SendMailDataNoGoAhead) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto sendWasCompleted = StartSendingEmail();
         auto& connection = *clients[0].connection;
         SendTextMessage(connection, "250 OK\r\n"); // response to MAIL FROM:<alex@example.com>
@@ -300,11 +298,11 @@ namespace SmtpTests {
         SendTextMessage(connection, "500 Go away, you smell\r\n"); // response to DATA
         ASSERT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_FALSE(sendWasCompleted.get());
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ClientTests, SendMailDataAccepted) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto sendWasCompleted = StartSendingEmail();
         auto& connection = *clients[0].connection;
         SendTextMessage(connection, "250 OK\r\n"); // response to MAIL FROM:<alex@example.com>
@@ -318,11 +316,11 @@ namespace SmtpTests {
         SendTextMessage(connection, "250 OK\r\n"); // response to headers/body
         ASSERT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_TRUE(sendWasCompleted.get());
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ClientTests, SendMailDataRejected) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto sendWasCompleted = StartSendingEmail();
         auto& connection = *clients[0].connection;
         SendTextMessage(connection, "250 OK\r\n"); // response to MAIL FROM:<alex@example.com>
@@ -336,7 +334,7 @@ namespace SmtpTests {
         SendTextMessage(connection, "500 Go away, you smell\r\n"); // response to headers/body
         ASSERT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_FALSE(sendWasCompleted.get());
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ClientTests, EscapeLineInBodyConsistingOfOnlyAFullStop) {

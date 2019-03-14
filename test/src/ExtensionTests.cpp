@@ -164,12 +164,11 @@ namespace SmtpTests {
     };
 
     TEST_F(ExtensionTests, ExtensionGivenOwnProtocolStage) {
-        auto failureOccurred = client.GetFailureFuture();
-        auto messageReadyToBeSent = client.GetMessageReadyBeSentFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         const auto extension = std::make_shared< BarPreMessageExtension >();
         client.RegisterExtension("BAR", extension);
         ASSERT_TRUE(EstablishConnectionPrepareToSend(false));
-        EXPECT_FALSE(FutureReady(messageReadyToBeSent, std::chrono::milliseconds(100)));
+        EXPECT_FALSE(FutureReady(readyOrBroken, std::chrono::milliseconds(100)));
         auto& connection = *clients[0].connection;
         auto messages = AwaitMessages(0, 1);
         EXPECT_EQ(
@@ -179,7 +178,9 @@ namespace SmtpTests {
             messages
         );
         SendTextMessage(connection, "250 OK\r\n");
-        EXPECT_TRUE(FutureReady(messageReadyToBeSent, std::chrono::milliseconds(1000)));
+        EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
+        EXPECT_TRUE(readyOrBroken.get());
+        readyOrBroken = client.GetReadyOrBrokenFuture();
         MessageHeaders::MessageHeaders headers;
         headers.AddHeader("From", "alex@example.com");
         const std::string body = (
@@ -193,11 +194,11 @@ namespace SmtpTests {
             }),
             messages
         );
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ExtensionTests, ExtensionHardFailureOnServerMessage) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         const auto extension = std::make_shared< BarPreMessageExtension >();
         extension->hardFailureOnServerMessage = true;
         client.RegisterExtension("BAR", extension);
@@ -211,11 +212,11 @@ namespace SmtpTests {
             messages
         );
         SendTextMessage(connection, "250 OK\r\n");
-        EXPECT_TRUE(FutureReady(failureOccurred, std::chrono::milliseconds(1000)));
+        EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
+        EXPECT_FALSE(readyOrBroken.get());
     }
 
     TEST_F(ExtensionTests, ExtensionSoftFailureOnServerMessage) {
-        auto failureOccurred = client.GetFailureFuture();
         const auto extension = std::make_shared< BarAfterSenderDeclaredExtension >();
         extension->softFailureOnServerMessage = true;
         client.RegisterExtension("BAR", extension);
@@ -228,7 +229,7 @@ namespace SmtpTests {
             "Hello, World!"
         );
         auto sendWasCompleted = client.SendMail(headers, body);
-        auto messageReadyToBeSent = client.GetMessageReadyBeSentFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto messages = AwaitMessages(0, 1);
         EXPECT_EQ(
             std::vector< std::string >({
@@ -236,14 +237,17 @@ namespace SmtpTests {
             }),
             messages
         );
-        EXPECT_FALSE(FutureReady(messageReadyToBeSent, std::chrono::milliseconds(100)));
+        EXPECT_FALSE(FutureReady(readyOrBroken, std::chrono::milliseconds(100)));
+        EXPECT_FALSE(FutureReady(sendWasCompleted, std::chrono::milliseconds(100)));
         SendTextMessage(connection, "250 OK\r\n");
-        EXPECT_TRUE(FutureReady(messageReadyToBeSent, std::chrono::milliseconds(1000)));
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
+        EXPECT_TRUE(readyOrBroken.get());
+        EXPECT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
+        EXPECT_FALSE(sendWasCompleted.get());
     }
 
     TEST_F(ExtensionTests, SupportedExtensionGetsToModifyMessagesInAnyStage) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         const auto extension = std::make_shared< FooExtension >();
         client.RegisterExtension("FOO", extension);
         ASSERT_TRUE(EstablishConnectionPrepareToSend());
@@ -270,11 +274,11 @@ namespace SmtpTests {
             }),
             messages
         );
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
     TEST_F(ExtensionTests, UnsupportedExtensionDoesNotGetToModifyMessagesInAnyStage) {
-        auto failureOccurred = client.GetFailureFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         const auto extension = std::make_shared< FooExtension >();
         client.RegisterExtension("SPAM", extension);
         ASSERT_TRUE(EstablishConnectionPrepareToSend());
@@ -291,7 +295,7 @@ namespace SmtpTests {
             }),
             messages
         );
-        EXPECT_FALSE(FutureReady(failureOccurred));
+        EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
 }

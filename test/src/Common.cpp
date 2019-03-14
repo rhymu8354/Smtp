@@ -193,7 +193,7 @@ namespace SmtpTests {
         if (!EstablishConnection(false)) {
             return false;
         }
-        auto messageReadyToBeSent = client.GetMessageReadyBeSentFuture();
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
         auto& connection = *clients[0].connection;
         SendTextMessage(
             connection,
@@ -206,15 +206,15 @@ namespace SmtpTests {
         SendTextMessage(connection, "250-FOO\r\n");
         SendTextMessage(connection, "250 BAR\r\n");
         if (verifyMessageReadyToBeSent) {
-            if (!FutureReady(messageReadyToBeSent, std::chrono::milliseconds(1000))) {
+            if (!FutureReady(readyOrBroken, std::chrono::milliseconds(1000))) {
                 return false;
             }
+            return readyOrBroken.get();
         }
         return true;
     }
 
     std::future< bool > Common::StartSendingEmail() {
-        auto failureOccurred = client.GetFailureFuture();
         std::promise< bool > sendCompletedEarly;
         auto sendWasCompletedEarly = sendCompletedEarly.get_future();
         if (!EstablishConnectionPrepareToSend()) {
