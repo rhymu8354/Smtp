@@ -180,7 +180,7 @@ namespace SmtpTests {
         EXPECT_TRUE(readyOrBroken.get());
         readyOrBroken = client.GetReadyOrBrokenFuture();
         MessageHeaders::MessageHeaders headers;
-        headers.AddHeader("From", "alex@example.com");
+        headers.AddHeader("From", "<alex@example.com>");
         const std::string body = (
             "Hello, World!"
         );
@@ -221,8 +221,8 @@ namespace SmtpTests {
         ASSERT_TRUE(EstablishConnectionPrepareToSend());
         auto& connection = *clients[0].connection;
         MessageHeaders::MessageHeaders headers;
-        headers.AddHeader("From", "alex@example.com");
-        headers.AddHeader("To", "bob@example.com");
+        headers.AddHeader("From", "<alex@example.com>");
+        headers.AddHeader("To", "<bob@example.com>");
         const std::string body = (
             "Hello, World!"
         );
@@ -251,8 +251,8 @@ namespace SmtpTests {
         ASSERT_TRUE(EstablishConnectionPrepareToSend());
         auto& connection = *clients[0].connection;
         MessageHeaders::MessageHeaders headers;
-        headers.AddHeader("From", "alex@example.com");
-        headers.AddHeader("To", "bob@example.com");
+        headers.AddHeader("From", "<alex@example.com>");
+        headers.AddHeader("To", "<bob@example.com>");
         const std::string body = (
             "Hello, World!"
         );
@@ -282,7 +282,7 @@ namespace SmtpTests {
         client.RegisterExtension("SPAM", extension);
         ASSERT_TRUE(EstablishConnectionPrepareToSend());
         MessageHeaders::MessageHeaders headers;
-        headers.AddHeader("From", "alex@example.com");
+        headers.AddHeader("From", "<alex@example.com>");
         const std::string body = (
             "Hello, World!"
         );

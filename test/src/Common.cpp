@@ -222,9 +222,9 @@ namespace SmtpTests {
             return sendWasCompletedEarly;
         }
         MessageHeaders::MessageHeaders headers;
-        headers.AddHeader("From", "alex@example.com");
-        headers.AddHeader("To", "bob@example.com");
-        headers.AddHeader("To", "carol@example.com");
+        headers.AddHeader("From", "<alex@example.com>");
+        headers.AddHeader("To", "<bob@example.com>");
+        headers.AddHeader("To", "<carol@example.com>");
         headers.AddHeader("Subject", "food.exe");
         const std::string body = (
             "Have you heard of food.exe?  admEJ\r\n"

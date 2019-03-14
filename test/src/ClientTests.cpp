@@ -150,7 +150,7 @@ namespace SmtpTests {
         ASSERT_TRUE(EstablishConnectionPrepareToSend());
         auto readyOrBroken = client.GetReadyOrBrokenFuture();
         MessageHeaders::MessageHeaders headers;
-        headers.AddHeader("From", "alex@example.com");
+        headers.AddHeader("From", "<alex@example.com>");
         const std::string body = (
             "Hello, World!"
         );
@@ -273,9 +273,9 @@ namespace SmtpTests {
         const auto messages = AwaitMessages(0, 1);
         EXPECT_EQ(
             std::vector< std::string >({
-                "From: alex@example.com\r\n",
-                "To: bob@example.com\r\n",
-                "To: carol@example.com\r\n",
+                "From: <alex@example.com>\r\n",
+                "To: <bob@example.com>\r\n",
+                "To: <carol@example.com>\r\n",
                 "Subject: food.exe\r\n",
                 "\r\n",
                 "Have you heard of food.exe?  admEJ\r\n",

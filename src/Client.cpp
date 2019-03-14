@@ -699,7 +699,7 @@ namespace Smtp {
             recipients.pop();
             SendMessageThroughExtensions(
                 SystemAbstractions::sprintf(
-                    "RCPT TO:<%s>",
+                    "RCPT TO:%s",
                     nextRecipient.c_str()
                 )
             );
@@ -770,7 +770,7 @@ namespace Smtp {
             impl_->body = body;
             impl_->SendMessageThroughExtensions(
                 SystemAbstractions::sprintf(
-                    "MAIL FROM:<%s>",
+                    "MAIL FROM:%s",
                     headers.GetHeaderValue("From").c_str()
                 )
             );
