@@ -44,7 +44,6 @@ namespace {
     {
         // Properties
 
-        bool hardFailureOnServerMessage = false;
         bool performedExtraStage = false;
         std::function< void(const std::string& data) > onSendMessage;
         std::function< void() > onSoftFailure;
@@ -87,7 +86,7 @@ namespace {
             const Smtp::Client::MessageContext& context,
             const Smtp::Client::ParsedMessage& message
         ) override {
-            if (hardFailureOnServerMessage) {
+            if (message.code != 250) {
                 return false;
             }
             onStageComplete();
@@ -163,7 +162,7 @@ namespace SmtpTests {
     {
     };
 
-    TEST_F(ExtensionTests, ExtensionGivenOwnProtocolStage) {
+    TEST_F(ExtensionTests, ExtensionProtocolStageSuccess) {
         auto readyOrBroken = client.GetReadyOrBrokenFuture();
         const auto extension = std::make_shared< BarPreMessageExtension >();
         client.RegisterExtension("BAR", extension);
@@ -197,12 +196,12 @@ namespace SmtpTests {
         EXPECT_FALSE(FutureReady(readyOrBroken));
     }
 
-    TEST_F(ExtensionTests, ExtensionHardFailureOnServerMessage) {
+    TEST_F(ExtensionTests, ExtensionProtocolStageHardFailure) {
         auto readyOrBroken = client.GetReadyOrBrokenFuture();
         const auto extension = std::make_shared< BarPreMessageExtension >();
-        extension->hardFailureOnServerMessage = true;
         client.RegisterExtension("BAR", extension);
         ASSERT_TRUE(EstablishConnectionPrepareToSend(false));
+        EXPECT_FALSE(FutureReady(readyOrBroken, std::chrono::milliseconds(100)));
         auto& connection = *clients[0].connection;
         auto messages = AwaitMessages(0, 1);
         EXPECT_EQ(
@@ -211,7 +210,7 @@ namespace SmtpTests {
             }),
             messages
         );
-        SendTextMessage(connection, "250 OK\r\n");
+        SendTextMessage(connection, "535 Go away\r\n");
         EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
         EXPECT_FALSE(readyOrBroken.get());
     }
