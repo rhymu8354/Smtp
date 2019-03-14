@@ -83,6 +83,12 @@ namespace Smtp {
         // Properties
 
         /**
+         * This is a helper object used to generate and publish
+         * diagnostic messages.
+         */
+        SystemAbstractions::DiagnosticsSender diagnosticsSender;
+
+        /**
          * This is used to protect the other properties of this structure
          * when accessed simultaneously by multiple threads.
          */
@@ -164,6 +170,16 @@ namespace Smtp {
          * currently being sent, that have not yet been given to the server.
          */
         std::queue< std::string > recipients;
+
+        // Methods
+
+        /**
+         * This is the default constructor of the structure
+         */
+        Impl()
+            : diagnosticsSender("Smtp")
+        {
+        }
 
         /**
          * Take the current ready-or-broken promises and return them, placing
@@ -338,6 +354,10 @@ namespace Smtp {
             std::vector< Client::ParsedMessage >& parsedMessages
         ) {
             for (const auto& line: lines) {
+                diagnosticsSender.SendDiagnosticInformationString(
+                    0,
+                    "S: " + line.substr(0, line.length() - 2)
+                );
                 Client::ParsedMessage parsedMessage;
                 if (
                     (line.length() < 4)
@@ -377,6 +397,10 @@ namespace Smtp {
          *     have a newline at the end.
          */
         void SendMessageDirectly(const std::string& message) {
+            diagnosticsSender.SendDiagnosticInformationString(
+                0,
+                "C: " + message.substr(0, message.length() - 2)
+            );
             serverConnection->SendMessage(
                 std::vector< uint8_t >(
                     message.begin(),
@@ -579,20 +603,31 @@ namespace Smtp {
             std::shared_ptr < TlsDecorator::TlsDecorator > tls;
             if (useTls) {
                 tls = std::make_shared< TlsDecorator::TlsDecorator >();
+                tls->SubscribeToDiagnostics(diagnosticsSender.Chain(), 1);
                 tls->ConfigureAsClient(
                     serverConnection,
                     caCerts,
                     serverHostName
                 );
                 serverConnection = tls;
+            } else {
+                serverConnection->SubscribeToDiagnostics(diagnosticsSender.Chain(), 1);
             }
             const auto hostAddress = SystemAbstractions::NetworkConnection::GetAddressOfHost(
                 serverHostName
             );
             if (hostAddress == 0) {
+                diagnosticsSender.SendDiagnosticInformationString(
+                    SystemAbstractions::DiagnosticsSender::Levels::WARNING,
+                    "Unable to determine IP address of SMTP server"
+                );
                 return false;
             }
             if (!serverConnection->Connect(hostAddress, serverPortNumber)) {
+                diagnosticsSender.SendDiagnosticInformationString(
+                    SystemAbstractions::DiagnosticsSender::Levels::WARNING,
+                    "Unable to connect to SMTP server"
+                );
                 return false;
             }
             std::weak_ptr< Impl > selfWeak(shared_from_this());
@@ -664,6 +699,13 @@ namespace Smtp {
     Client::Client()
         : impl_(new Impl)
     {
+    }
+
+    SystemAbstractions::DiagnosticsSender::UnsubscribeDelegate Client::SubscribeToDiagnostics(
+        SystemAbstractions::DiagnosticsSender::DiagnosticMessageDelegate delegate,
+        size_t minLevel
+    ) {
+        return impl_->diagnosticsSender.SubscribeToDiagnostics(delegate, minLevel);
     }
 
     void Client::EnableTls(const std::string& caCerts) {
