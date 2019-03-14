@@ -354,10 +354,12 @@ namespace Smtp {
             std::vector< Client::ParsedMessage >& parsedMessages
         ) {
             for (const auto& line: lines) {
-                diagnosticsSender.SendDiagnosticInformationString(
-                    0,
-                    "S: " + line.substr(0, line.length() - 2)
-                );
+                if (!activeExtension) {
+                    diagnosticsSender.SendDiagnosticInformationString(
+                        0,
+                        "S: " + line.substr(0, line.length() - 2)
+                    );
+                }
                 Client::ParsedMessage parsedMessage;
                 if (
                     (line.length() < 4)
