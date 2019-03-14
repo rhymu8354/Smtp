@@ -274,7 +274,8 @@ namespace SmtpTests {
             }),
             messages
         );
-        EXPECT_FALSE(FutureReady(readyOrBroken));
+        EXPECT_TRUE(FutureReady(readyOrBroken));
+        EXPECT_TRUE(readyOrBroken.get());
     }
 
     TEST_F(ExtensionTests, UnsupportedExtensionDoesNotGetToModifyMessagesInAnyStage) {
@@ -295,7 +296,8 @@ namespace SmtpTests {
             }),
             messages
         );
-        EXPECT_FALSE(FutureReady(readyOrBroken));
+        EXPECT_TRUE(FutureReady(readyOrBroken));
+        EXPECT_TRUE(readyOrBroken.get());
     }
 
 }

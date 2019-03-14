@@ -198,8 +198,14 @@ namespace Smtp {
              *     This is the message the extension is being asked to modify.
              *
              * @return
-             *     The input message, possibly modified by the extension,
-             *     is returned.
+             *     An indication of whether or not the message was handled
+             *     successfully is returned.
+             *
+             * @retval false
+             *     If this is returned, the client should consider the
+             *     protocol to have encountered a "hard failure", meaning
+             *     an unrecoverable error where the connection should
+             *     be dropped.
              */
             virtual bool HandleServerMessage(
                 const MessageContext& context,
