@@ -25,7 +25,15 @@ namespace {
     struct FooExtension
         : public Smtp::Client::Extension
     {
+        // Properties
+
+        std::string parameters;
+
         // Smtp::Client::Extension
+
+        virtual void Configure(const std::string& parameters) {
+            this->parameters = parameters;
+        }
 
         virtual std::string ModifyMessage(
             const Smtp::Client::MessageContext& context,
@@ -288,6 +296,13 @@ namespace SmtpTests {
         );
         EXPECT_TRUE(FutureReady(readyOrBroken));
         EXPECT_TRUE(readyOrBroken.get());
+    }
+
+    TEST_F(ExtensionTests, SupportedExtensionGivenParameters) {
+        const auto extension = std::make_shared< FooExtension >();
+        client.RegisterExtension("FOO", extension);
+        ASSERT_TRUE(EstablishConnectionPrepareToSend());
+        EXPECT_EQ("Poggers", extension->parameters);
     }
 
 }

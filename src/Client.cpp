@@ -33,6 +33,9 @@ namespace {
 
 namespace Smtp {
 
+    void Client::Extension::Configure(const std::string& parameters) {
+    }
+
     std::string Client::Extension::ModifyMessage(
         const MessageContext& context,
         const std::string& input
@@ -461,15 +464,21 @@ namespace Smtp {
                     case ProtocolStage::Options: {
                         if (parsedMessage.code == 250) {
                             auto delimiter = parsedMessage.text.find(' ');
+                            decltype(delimiter) parametersStart = delimiter + 1;
                             if (delimiter == std::string::npos) {
                                 delimiter = parsedMessage.text.length();
+                                parametersStart = delimiter;
                             }
                             const auto supportedExtensionName = parsedMessage.text.substr(
                                 0,
                                 delimiter
                             );
-                            if (extensions.find(supportedExtensionName) != extensions.end()) {
+                            auto extensionsEntry = extensions.find(supportedExtensionName);
+                            if (extensionsEntry != extensions.end()) {
                                 (void)supportedExtensionNames.insert(supportedExtensionName);
+                                extensionsEntry->second->Configure(
+                                    parsedMessage.text.substr(parametersStart)
+                                );
                             }
                             if (parsedMessage.last) {
                                 OnMessageReady();

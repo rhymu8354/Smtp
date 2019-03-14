@@ -203,7 +203,7 @@ namespace SmtpTests {
             return false;
         }
         SendTextMessage(connection, "250-mail.example.com\r\n");
-        SendTextMessage(connection, "250-FOO\r\n");
+        SendTextMessage(connection, "250-FOO Poggers\r\n");
         SendTextMessage(connection, "250 BAR\r\n");
         if (verifyMessageReadyToBeSent) {
             if (!FutureReady(readyOrBroken, std::chrono::milliseconds(1000))) {

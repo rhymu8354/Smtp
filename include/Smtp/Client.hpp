@@ -124,6 +124,16 @@ namespace Smtp {
             // Methods
         public:
             /**
+             * Set up the extension to be used in communicating with an
+             * SMTP server.
+             *
+             * @param[in] parameters
+             *     This contains any text included by the SMTP server when
+             *     this extension was listed as supported.
+             */
+            virtual void Configure(const std::string& parameters);
+
+            /**
              * Allow the extension to modify the given message about to be sent
              * from the client to the server.
              *
