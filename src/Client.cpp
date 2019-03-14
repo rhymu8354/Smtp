@@ -237,7 +237,7 @@ namespace Smtp {
                 ) {
                     activeExtension = extension;
                     activeExtension->GoAhead(
-                        std::bind(&Impl::SendMessageDirectly, this, std::placeholders::_1),
+                        std::bind(&Impl::SendMessageDirectlyWithoutLogging, this, std::placeholders::_1),
                         std::bind(&Impl::OnExtensionStageComplete, this, std::placeholders::_1)
                     );
                     break;
@@ -389,6 +389,23 @@ namespace Smtp {
         }
 
         /**
+         * Send the given message to the SMTP server without processing it with
+         * any extensions, and without publishing any diagnostic messages.
+         *
+         * @param[in] message
+         *     This is the message to send.  Each line of the message should
+         *     have a newline at the end.
+         */
+        void SendMessageDirectlyWithoutLogging(const std::string& message) {
+            serverConnection->SendMessage(
+                std::vector< uint8_t >(
+                    message.begin(),
+                    message.end()
+                )
+            );
+        }
+
+        /**
          * Send the given message to the SMTP server without processing it
          * with any extensions.
          *
@@ -401,12 +418,7 @@ namespace Smtp {
                 0,
                 "C: " + message.substr(0, message.length() - 2)
             );
-            serverConnection->SendMessage(
-                std::vector< uint8_t >(
-                    message.begin(),
-                    message.end()
-                )
-            );
+            SendMessageDirectlyWithoutLogging(message);
         }
 
         /**
