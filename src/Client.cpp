@@ -341,7 +341,7 @@ namespace Smtp {
             for (const auto& line: lines) {
                 if (!activeExtension) {
                     diagnosticsSender.SendDiagnosticInformationString(
-                        0,
+                        1,
                         "S: " + line.substr(0, line.length() - 2)
                     );
                 }
@@ -402,7 +402,7 @@ namespace Smtp {
          */
         void SendMessageDirectly(const std::string& message) {
             diagnosticsSender.SendDiagnosticInformationString(
-                0,
+                1,
                 "C: " + message.substr(0, message.length() - 2)
             );
             SendMessageDirectlyWithoutLogging(message);
