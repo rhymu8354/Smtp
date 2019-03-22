@@ -605,6 +605,7 @@ namespace Smtp {
                 );
                 return false;
             }
+            serverConnection->SubscribeToDiagnostics(diagnosticsSender.Chain());
             std::weak_ptr< Impl > selfWeak(shared_from_this());
             const auto messageReceivedDelegate = [selfWeak](
                 const std::vector< uint8_t >& message
