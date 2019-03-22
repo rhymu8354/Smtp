@@ -201,7 +201,6 @@ namespace SmtpTests {
             transport->caCerts = testGoodCertificate;
         }
         auto connectionDidComplete = client.Connect(
-            "alex.example.com",
             "localhost",
             serverPort
         );

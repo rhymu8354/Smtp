@@ -321,10 +321,6 @@ namespace Smtp {
         /**
          * Asynchronously initiate a connection to an SMTP server.
          *
-         * @param[in] clientHostName
-         *     This is the name to advertise to the server as being
-         *     the host name or literal address of the client.
-         *
          * @param[in] serverHostName
          *     This is the name of the SMTP server's host.
          *
@@ -336,7 +332,6 @@ namespace Smtp {
          *     process is completed.
          */
         std::future< bool > Connect(
-            const std::string& clientHostName,
             const std::string& serverHostName,
             const uint16_t serverPortNumber
         );

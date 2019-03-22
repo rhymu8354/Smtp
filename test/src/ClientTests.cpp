@@ -36,7 +36,6 @@ namespace SmtpTests {
         transport->useTls = true;
         transport->caCerts = testGoodCertificate;
         auto connectionDidComplete = client.Connect(
-            "alex.example.com",
             "localhost",
             serverPort
         );
@@ -54,7 +53,6 @@ namespace SmtpTests {
         transport->useTls = true;
         transport->caCerts = testBadCertificate;
         auto connectionDidComplete = client.Connect(
-            "alex.example.com",
             "localhost",
             serverPort
         );
@@ -69,7 +67,6 @@ namespace SmtpTests {
     TEST_F(ClientTests, ConnectToServerWithoutTls) {
         StartServer(false);
         auto connectionDidComplete = client.Connect(
-            "alex.example.com",
             "localhost",
             serverPort
         );
@@ -94,7 +91,7 @@ namespace SmtpTests {
         const auto messages = AwaitMessages(0, 1);
         EXPECT_EQ(
             std::vector< std::string >({
-                "EHLO alex.example.com\r\n",
+                "EHLO [127.0.0.1]\r\n",
             }),
             messages
         );

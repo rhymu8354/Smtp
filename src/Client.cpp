@@ -9,6 +9,7 @@
 #include <chrono>
 #include <functional>
 #include <future>
+#include <inttypes.h>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -462,7 +463,16 @@ namespace Smtp {
                 switch (currentMessageContext.protocolStage) {
                     case ProtocolStage::Greeting: {
                         if (parsedMessage.code == 220) {
-                            SendMessageDirectly("EHLO alex.example.com\r\n");
+                            const auto address = serverConnection->GetBoundAddress();
+                            SendMessageDirectly(
+                                SystemAbstractions::sprintf(
+                                    "EHLO [%" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8 "]\r\n",
+                                    (uint8_t)((address >> 24) & 0xff),
+                                    (uint8_t)((address >> 16) & 0xff),
+                                    (uint8_t)((address >> 8) & 0xff),
+                                    (uint8_t)(address & 0xff)
+                                )
+                            );
                             TransitionProtocolStage(ProtocolStage::Options);
                         } else {
                             OnHardFailure();
@@ -578,10 +588,6 @@ namespace Smtp {
         /**
          * Synchronously initiate a connection to an SMTP server.
          *
-         * @param[in] clientHostName
-         *     This is the name to advertise to the server as being
-         *     the host name or literal address of the client.
-         *
          * @param[in] serverHostName
          *     This is the name of the SMTP server's host.
          *
@@ -593,7 +599,6 @@ namespace Smtp {
          *     server was successfully made is returned.
          */
         bool Connect(
-            const std::string& clientHostName,
             const std::string& serverHostName,
             const uint16_t serverPortNumber
         ) {
@@ -679,7 +684,6 @@ namespace Smtp {
     }
 
     std::future< bool > Client::Connect(
-        const std::string& clientHostName,
         const std::string& serverHostName,
         const uint16_t serverPortNumber
     ) {
@@ -688,11 +692,9 @@ namespace Smtp {
             [
                 impl,
                 serverHostName,
-                serverPortNumber,
-                clientHostName
+                serverPortNumber
             ]{
                 return impl->Connect(
-                    clientHostName,
                     serverHostName,
                     serverPortNumber
                 );
