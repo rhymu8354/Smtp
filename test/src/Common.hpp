@@ -65,6 +65,20 @@ namespace SmtpTests {
         bool broken = false;
     };
 
+    struct SmtpTransport
+        : public Smtp::Client::Transport
+    {
+        bool useTls = false;
+        std::string caCerts;
+
+        // Smtp::Client::Transport
+
+        virtual std::shared_ptr< SystemAbstractions::INetworkConnection > Connect(
+            const std::string& hostNameOrAddress,
+            uint16_t port
+        ) override;
+    };
+
     /**
      * This is the base for test fixtures used to test the SMTP library.
      */
@@ -77,6 +91,8 @@ namespace SmtpTests {
          * This is the unit under test.
          */
         Smtp::Client client;
+
+        std::shared_ptr< SmtpTransport > transport = std::make_shared< SmtpTransport >();
 
         /**
          * This is a real network server used to test that the unit under test

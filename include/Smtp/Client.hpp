@@ -14,6 +14,7 @@
 #include <MessageHeaders/MessageHeaders.hpp>
 #include <string>
 #include <SystemAbstractions/DiagnosticsSender.hpp>
+#include <SystemAbstractions/INetworkConnection.hpp>
 
 namespace Smtp {
 
@@ -225,6 +226,36 @@ namespace Smtp {
             );
         };
 
+        /**
+         * This is the interface to the dependency of the class which
+         * implements network connections the class needs to communicate with
+         * SMTP servers.
+         */
+        class Transport {
+        public:
+            /**
+             * Establish a new connection to a server.
+             *
+             * @param[in] hostNameOrAddress
+             *     This is the host name or IPv4 address of the server to
+             *     which to connect.
+             *
+             * @param[in] port
+             *     This is the port number of the server.
+             *
+             * @return
+             *     An object used to communicate with the server is returned.
+             *
+             * @retval nullptr
+             *     This is returned if a connection to the server could not
+             *     be established.
+             */
+            virtual std::shared_ptr< SystemAbstractions::INetworkConnection > Connect(
+                const std::string& hostNameOrAddress,
+                uint16_t port
+            ) = 0;
+        };
+
         // Lifecycle management
     public:
         ~Client() noexcept;
@@ -262,14 +293,13 @@ namespace Smtp {
         );
 
         /**
-         * Set the instance up to include a Transport Layer Security (TLS)
-         * layer between the application (SMTP) and network (TCP) layers.
+         * Provide the dependencies the class needs to operate.
          *
-         * @param[in] caCerts
-         *     This is the concatenation of the root Certificate Authority
-         *     (CA) certificates to trust, in PEM format.
+         * @param[in] transport
+         *     This is the object used to make network connections to
+         *     SMTP servers.
          */
-        void EnableTls(const std::string& caCerts);
+        void Configure(std::shared_ptr< Transport > transport);
 
         /**
          * Provide the implementation of an SMTP extension to be used (if the

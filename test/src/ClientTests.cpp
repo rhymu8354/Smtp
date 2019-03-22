@@ -33,7 +33,8 @@ namespace SmtpTests {
 
     TEST_F(ClientTests, ConnectToServerWithTlsGoodCertificate) {
         StartServer(true);
-        client.EnableTls(testGoodCertificate);
+        transport->useTls = true;
+        transport->caCerts = testGoodCertificate;
         auto connectionDidComplete = client.Connect(
             "alex.example.com",
             "localhost",
@@ -50,7 +51,8 @@ namespace SmtpTests {
 
     TEST_F(ClientTests, ConnectToServerWithTlsBadCertificate) {
         StartServer(true);
-        client.EnableTls(testBadCertificate);
+        transport->useTls = true;
+        transport->caCerts = testBadCertificate;
         auto connectionDidComplete = client.Connect(
             "alex.example.com",
             "localhost",

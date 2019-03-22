@@ -36,8 +36,8 @@ There are two distinct steps in the build process:
 * [CMake](https://cmake.org/) version 3.8 or newer
 * C++11 toolchain compatible with CMake for your development platform (e.g.
   [Visual Studio](https://www.visualstudio.com/) on Windows)
-* [Hash](https://github.com/rhymu8354/Hash.git) - a library which implements
-  various cryptographic hash and message digest functions.
+* [MessageHeaders](https://github.com/rhymu8354/MessageHeaders.git) - a library
+  which can parse and generate e-mail or web message headers
 * [SystemAbstractions](https://github.com/rhymu8354/SystemAbstractions.git) - a
   cross-platform adapter library for system services whose APIs vary from one
   operating system to another

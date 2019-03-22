@@ -23,6 +23,34 @@
 
 namespace SmtpTests {
 
+    std::shared_ptr< SystemAbstractions::INetworkConnection > SmtpTransport::Connect(
+        const std::string& hostNameOrAddress,
+        uint16_t port
+    ) {
+        std::shared_ptr< SystemAbstractions::INetworkConnection > serverConnection
+            = std::make_shared< SystemAbstractions::NetworkConnection >();
+        std::shared_ptr < TlsDecorator::TlsDecorator > tls;
+        if (useTls) {
+            tls = std::make_shared< TlsDecorator::TlsDecorator >();
+            tls->ConfigureAsClient(
+                serverConnection,
+                caCerts,
+                hostNameOrAddress
+            );
+            serverConnection = tls;
+        }
+        const auto hostAddress = SystemAbstractions::NetworkConnection::GetAddressOfHost(
+            hostNameOrAddress
+        );
+        if (hostAddress == 0) {
+            return nullptr;
+        }
+        if (!serverConnection->Connect(hostAddress, port)) {
+            return nullptr;
+        }
+        return serverConnection;
+    }
+
     const std::string testGoodCertificate = (
         "-----BEGIN CERTIFICATE-----\r\n"
         "MIIEpDCCAowCCQCuHs5BKOVHazANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls\r\n"
@@ -169,7 +197,8 @@ namespace SmtpTests {
 
     bool Common::EstablishConnection(bool useTls) {
         if (useTls) {
-            client.EnableTls(testGoodCertificate);
+            transport->useTls = true;
+            transport->caCerts = testGoodCertificate;
         }
         auto connectionDidComplete = client.Connect(
             "alex.example.com",
@@ -338,6 +367,7 @@ namespace SmtpTests {
     }
 
     void Common::SetUp() {
+        client.Configure(transport);
     }
 
     void Common::TearDown() {

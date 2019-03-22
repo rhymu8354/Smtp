@@ -17,19 +17,9 @@
 #include <Smtp/Client.hpp>
 #include <stddef.h>
 #include <stdio.h>
-#include <SystemAbstractions/NetworkConnection.hpp>
 #include <SystemAbstractions/StringExtensions.hpp>
 #include <thread>
-#include <TlsDecorator/TlsDecorator.hpp>
 #include <vector>
-
-namespace {
-
-    /**
-     */
-    constexpr std::chrono::milliseconds TLS_HANDSHAKE_TIMEOUT = std::chrono::milliseconds(1000);
-
-}
 
 namespace Smtp {
 
@@ -106,23 +96,17 @@ namespace Smtp {
         std::set< std::string > supportedExtensionNames;
 
         /**
+         * This is the object used to establish new network connections to SMTP
+         * servers.
+         */
+        std::shared_ptr< Transport > transport;
+
+        /**
          * This is the interface to the next layer down in protocols
          * (either the TLS layer or the TCP layer, depending on whether
          * or not TLS was enabled).
          */
         std::shared_ptr< SystemAbstractions::INetworkConnection > serverConnection;
-
-        /**
-         * This indicates whether or not to include a Transport Layer Security
-         * (TLS) layer between the application (SMTP) and network (TCP) layers.
-         */
-        bool useTls = false;
-
-        /**
-         * This is the concatenation of the root Certificate Authority
-         * (CA) certificates to trust, in PEM format.
-         */
-        std::string caCerts;
 
         /**
          * This holds any promises made to publish the fact that the SMTP
@@ -613,31 +597,8 @@ namespace Smtp {
             const std::string& serverHostName,
             const uint16_t serverPortNumber
         ) {
-            serverConnection = std::make_shared< SystemAbstractions::NetworkConnection >();
-            std::shared_ptr < TlsDecorator::TlsDecorator > tls;
-            if (useTls) {
-                tls = std::make_shared< TlsDecorator::TlsDecorator >();
-                tls->SubscribeToDiagnostics(diagnosticsSender.Chain(), 1);
-                tls->ConfigureAsClient(
-                    serverConnection,
-                    caCerts,
-                    serverHostName
-                );
-                serverConnection = tls;
-            } else {
-                serverConnection->SubscribeToDiagnostics(diagnosticsSender.Chain(), 1);
-            }
-            const auto hostAddress = SystemAbstractions::NetworkConnection::GetAddressOfHost(
-                serverHostName
-            );
-            if (hostAddress == 0) {
-                diagnosticsSender.SendDiagnosticInformationString(
-                    SystemAbstractions::DiagnosticsSender::Levels::WARNING,
-                    "Unable to determine IP address of SMTP server"
-                );
-                return false;
-            }
-            if (!serverConnection->Connect(hostAddress, serverPortNumber)) {
+            serverConnection = transport->Connect(serverHostName, serverPortNumber);
+            if (serverConnection == nullptr) {
                 diagnosticsSender.SendDiagnosticInformationString(
                     SystemAbstractions::DiagnosticsSender::Levels::WARNING,
                     "Unable to connect to SMTP server"
@@ -670,23 +631,6 @@ namespace Smtp {
                 )
             ) {
                 return false;
-            }
-            if (useTls) {
-                auto handshakeCompleted = std::make_shared< std::promise< void > >();
-                auto handshakeWasCompleted = handshakeCompleted->get_future();
-                tls->SetHandshakeCompleteDelegate(
-                    [handshakeCompleted](
-                        const std::string& certificate
-                    ){
-                        handshakeCompleted->set_value();
-                    }
-                );
-                if (
-                    handshakeWasCompleted.wait_for(TLS_HANDSHAKE_TIMEOUT)
-                    != std::future_status::ready
-                ) {
-                    return false;
-                }
             }
             return true;
         }
@@ -722,9 +666,8 @@ namespace Smtp {
         return impl_->diagnosticsSender.SubscribeToDiagnostics(delegate, minLevel);
     }
 
-    void Client::EnableTls(const std::string& caCerts) {
-        impl_->useTls = true;
-        impl_->caCerts = caCerts;
+    void Client::Configure(std::shared_ptr< Transport > transport) {
+        impl_->transport = transport;
     }
 
     void Client::RegisterExtension(
