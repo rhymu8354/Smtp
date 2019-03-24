@@ -16,11 +16,52 @@
 #include <queue>
 #include <set>
 #include <Smtp/Client.hpp>
+#include <sstream>
 #include <stddef.h>
 #include <stdio.h>
 #include <SystemAbstractions/StringExtensions.hpp>
 #include <thread>
 #include <vector>
+
+namespace {
+
+    /**
+     * Normalize all line endings of the given e-mail body to be CRLF and
+     * perform "dot-stuffing" (extra '.' added at the beginning of a line if
+     * that line started with '.', as described in RFC 5321 section 4.5.2).
+     *
+     * @param[in] body
+     *     This is the e-mail body to process.
+     *
+     * @return
+     *     The processed version of the given e-mail body is returned.
+     */
+    std::string ProcessBody(const std::string& body) {
+        std::ostringstream builder;
+        const auto length = body.length();
+        bool first = true;
+        for (size_t i = 0; i < length; ++i) {
+            const auto next = body[i];
+            if (next == '\n') {
+                builder << "\r\n";
+                first = true;
+            } else if (next != '\r') {
+                if (first) {
+                    first = false;
+                    if (next == '.') {
+                        builder << '.';
+                    }
+                }
+                builder << next;
+            }
+        }
+        if (!first) {
+            builder << "\r\n";
+        }
+        return builder.str();
+    }
+
+}
 
 namespace Smtp {
 
@@ -146,7 +187,11 @@ namespace Smtp {
         MessageHeaders::MessageHeaders headers;
 
         /**
-         * This is a copy of the body of the e-mail currently being sent.
+         * This is a copy of the body of the e-mail currently being sent.  It
+         * has been processed so that all lines end in a CRLF and
+         * "dot-stuffing" is performed (extra '.' added at the beginning of a
+         * line if that line started with '.', as described in RFC 5321 section
+         * 4.5.2).
          */
         std::string body;
 
@@ -719,7 +764,7 @@ namespace Smtp {
             && (headers.HasHeader("From"))
         ) {
             impl_->headers = headers;
-            impl_->body = body;
+            impl_->body = ProcessBody(body);
             impl_->SendMessageThroughExtensions(
                 SystemAbstractions::sprintf(
                     "MAIL FROM:%s",

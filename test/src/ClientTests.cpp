@@ -342,8 +342,74 @@ namespace SmtpTests {
         EXPECT_TRUE(readyOrBroken.get());
     }
 
-    TEST_F(ClientTests, EscapeLineInBodyConsistingOfOnlyAFullStop) {
-        // TODO
+    TEST_F(ClientTests, DotStuffingSingleCharacter) {
+        ASSERT_TRUE(EstablishConnectionPrepareToSend());
+        MessageHeaders::MessageHeaders headers;
+        headers.AddHeader("From", "<alex@example.com>");
+        headers.AddHeader("To", "<bob@example.com>");
+        headers.AddHeader("Subject", "dot stuffing test 1");
+        const std::string body = (
+            "The next line should be dot-stuffed.\r\n"
+            ".\r\n"
+            "Did that work?\r\n"
+        );
+        (void)client.SendMail(headers, body);
+        (void)AwaitMessages(0, 1);
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
+        auto& connection = *clients[0].connection;
+        SendTextMessage(connection, "250 OK\r\n"); // response to MAIL FROM:<alex@example.com>
+        (void)AwaitMessages(0, 1);
+        SendTextMessage(connection, "250 OK\r\n"); // response to RCPT TO:<bob@example.com>
+        (void)AwaitMessages(0, 1);
+        SendTextMessage(connection, "354 Start mail input; end with <CRLF>.<CRLF>\r\n"); // response to DATA
+        EXPECT_EQ(
+            std::vector< std::string >({
+                "From: <alex@example.com>\r\n",
+                "To: <bob@example.com>\r\n",
+                "Subject: dot stuffing test 1\r\n",
+                "\r\n",
+                "The next line should be dot-stuffed.\r\n",
+                "..\r\n",
+                "Did that work?\r\n",
+                ".\r\n",
+            }),
+            AwaitMessages(0, 3)
+        );
+    }
+
+    TEST_F(ClientTests, DotStuffingMultipleCharacters) {
+        ASSERT_TRUE(EstablishConnectionPrepareToSend());
+        MessageHeaders::MessageHeaders headers;
+        headers.AddHeader("From", "<alex@example.com>");
+        headers.AddHeader("To", "<bob@example.com>");
+        headers.AddHeader("Subject", "dot stuffing test 2");
+        const std::string body = (
+            "The next line should be dot-stuffed.\r\n"
+            ".com\r\n"
+            "Did that work?\r\n"
+        );
+        (void)client.SendMail(headers, body);
+        (void)AwaitMessages(0, 1);
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
+        auto& connection = *clients[0].connection;
+        SendTextMessage(connection, "250 OK\r\n"); // response to MAIL FROM:<alex@example.com>
+        (void)AwaitMessages(0, 1);
+        SendTextMessage(connection, "250 OK\r\n"); // response to RCPT TO:<bob@example.com>
+        (void)AwaitMessages(0, 1);
+        SendTextMessage(connection, "354 Start mail input; end with <CRLF>.<CRLF>\r\n"); // response to DATA
+        EXPECT_EQ(
+            std::vector< std::string >({
+                "From: <alex@example.com>\r\n",
+                "To: <bob@example.com>\r\n",
+                "Subject: dot stuffing test 2\r\n",
+                "\r\n",
+                "The next line should be dot-stuffed.\r\n",
+                "..com\r\n",
+                "Did that work?\r\n",
+                ".\r\n",
+            }),
+            AwaitMessages(0, 3)
+        );
     }
 
     TEST_F(ClientTests, BodyNotExplicitlyEndingInANewLine) {
@@ -373,7 +439,7 @@ namespace SmtpTests {
                 "This e-mail body has no terminating newline on input\r\n",
                 ".\r\n"
             }),
-            AwaitMessages(0, 4)
+            AwaitMessages(0, 3)
         );
     }
 
