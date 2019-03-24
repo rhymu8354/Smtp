@@ -269,7 +269,7 @@ namespace SmtpTests {
         SendTextMessage(connection, "250 OK\r\n"); // response to RCPT TO:<carol@example.com>
         (void)AwaitMessages(0, 1);
         SendTextMessage(connection, "354 Start mail input; end with <CRLF>.<CRLF>\r\n"); // response to DATA
-        const auto messages = AwaitMessages(0, 1);
+        const auto messages = AwaitMessages(0, 3);
         EXPECT_EQ(
             std::vector< std::string >({
                 "From: <alex@example.com>\r\n",
@@ -315,7 +315,7 @@ namespace SmtpTests {
         SendTextMessage(connection, "250 OK\r\n"); // response to RCPT TO:<carol@example.com>
         (void)AwaitMessages(0, 1);
         SendTextMessage(connection, "354 Start mail input; end with <CRLF>.<CRLF>\r\n"); // response to DATA
-        (void)AwaitMessages(0, 1);
+        (void)AwaitMessages(0, 3);
         SendTextMessage(connection, "250 OK\r\n"); // response to headers/body
         ASSERT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_TRUE(sendWasCompleted.get());
@@ -334,7 +334,7 @@ namespace SmtpTests {
         SendTextMessage(connection, "250 OK\r\n"); // response to RCPT TO:<carol@example.com>
         (void)AwaitMessages(0, 1);
         SendTextMessage(connection, "354 Start mail input; end with <CRLF>.<CRLF>\r\n"); // response to DATA
-        (void)AwaitMessages(0, 1);
+        (void)AwaitMessages(0, 3);
         SendTextMessage(connection, "500 Go away, you smell\r\n"); // response to headers/body
         ASSERT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_FALSE(sendWasCompleted.get());
