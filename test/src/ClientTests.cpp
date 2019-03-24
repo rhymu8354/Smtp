@@ -347,7 +347,34 @@ namespace SmtpTests {
     }
 
     TEST_F(ClientTests, BodyNotExplicitlyEndingInANewLine) {
-        // TODO
+        ASSERT_TRUE(EstablishConnectionPrepareToSend());
+        MessageHeaders::MessageHeaders headers;
+        headers.AddHeader("From", "<alex@example.com>");
+        headers.AddHeader("To", "<bob@example.com>");
+        headers.AddHeader("Subject", "short line test");
+        const std::string body = (
+            "This e-mail body has no terminating newline on input"
+        );
+        (void)client.SendMail(headers, body);
+        (void)AwaitMessages(0, 1);
+        auto readyOrBroken = client.GetReadyOrBrokenFuture();
+        auto& connection = *clients[0].connection;
+        SendTextMessage(connection, "250 OK\r\n"); // response to MAIL FROM:<alex@example.com>
+        (void)AwaitMessages(0, 1);
+        SendTextMessage(connection, "250 OK\r\n"); // response to RCPT TO:<bob@example.com>
+        (void)AwaitMessages(0, 1);
+        SendTextMessage(connection, "354 Start mail input; end with <CRLF>.<CRLF>\r\n"); // response to DATA
+        EXPECT_EQ(
+            std::vector< std::string >({
+                "From: <alex@example.com>\r\n",
+                "To: <bob@example.com>\r\n",
+                "Subject: short line test\r\n",
+                "\r\n",
+                "This e-mail body has no terminating newline on input\r\n",
+                ".\r\n"
+            }),
+            AwaitMessages(0, 4)
+        );
     }
 
 }

@@ -553,6 +553,12 @@ namespace Smtp {
                             TransitionProtocolStage(ProtocolStage::AwaitingSendResponse);
                             SendMessageDirectly(headers.GenerateRawHeaders());
                             SendMessageDirectly(body);
+                            if (
+                                (body.length() < 2)
+                                || (body.substr(body.length() - 2) != "\r\n")
+                            ) {
+                                SendMessageDirectly("\r\n");
+                            }
                             SendMessageDirectly(".\r\n");
                         } else {
                             OnSoftFailure();
