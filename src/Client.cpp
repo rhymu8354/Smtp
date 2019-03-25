@@ -758,6 +758,7 @@ namespace Smtp {
 
     void Client::Disconnect() {
         impl_->serverConnection = nullptr;
+        impl_->currentMessageContext = MessageContext();
     }
 
     std::future< bool > Client::SendMail(

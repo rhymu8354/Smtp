@@ -450,4 +450,33 @@ namespace SmtpTests {
         EXPECT_TRUE(AwaitBroken(0));
     }
 
+    TEST_F(ClientTests, SendMailAfterDisconnectFollowingPreviousSendMail) {
+        // Arrange
+        StartServer(false);
+        ASSERT_TRUE(EstablishConnection(false));
+        auto& firstConnection = *clients[0].connection;
+        SendTextMessage(
+            firstConnection,
+            "220 mail.example.com Simple Mail Transfer Service Ready\r\n"
+        );
+        (void)AwaitMessages(0, 1);
+        client.Disconnect();
+        (void)AwaitBroken(0);
+
+        // Act
+        ASSERT_TRUE(EstablishConnection(false));
+        auto& secondConnection = *clients[1].connection;
+        SendTextMessage(
+            secondConnection,
+            "220 mail.example.com Simple Mail Transfer Service Ready\r\n"
+        );
+        const auto messages = AwaitMessages(1, 1);
+        EXPECT_EQ(
+            std::vector< std::string >({
+                "EHLO [127.0.0.1]\r\n",
+            }),
+            messages
+        );
+    }
+
 }
