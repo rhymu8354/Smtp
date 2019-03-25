@@ -70,6 +70,7 @@ namespace SmtpTests {
     {
         bool useTls = false;
         std::string caCerts;
+        std::shared_ptr< SystemAbstractions::INetworkConnection > lastServerConnection;
 
         // Smtp::Client::Transport
 

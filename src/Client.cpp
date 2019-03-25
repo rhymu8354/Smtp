@@ -757,6 +757,7 @@ namespace Smtp {
     }
 
     void Client::Disconnect() {
+        impl_->serverConnection->Close(true);
         impl_->serverConnection = nullptr;
         impl_->currentMessageContext = MessageContext();
     }

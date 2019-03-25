@@ -48,6 +48,7 @@ namespace SmtpTests {
         if (!serverConnection->Connect(hostAddress, port)) {
             return nullptr;
         }
+        lastServerConnection = serverConnection;
         return serverConnection;
     }
 
