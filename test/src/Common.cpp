@@ -195,6 +195,22 @@ namespace SmtpTests {
         return messagesReceived;
     }
 
+    bool Common::AwaitBroken(
+        size_t clientIndex,
+        std::chrono::milliseconds timeout
+    ) {
+        std::unique_lock< std::mutex > lock(mutex);
+        auto& client = clients[clientIndex];
+        return waitCondition.wait_for(
+            lock,
+            timeout,
+            [this, clientIndex]{
+                auto& client = clients[clientIndex];
+                return client.broken;
+            }
+        );
+    }
+
     bool Common::EstablishConnection(bool useTls) {
         if (useTls) {
             transport->useTls = true;

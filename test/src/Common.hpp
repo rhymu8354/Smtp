@@ -142,6 +142,11 @@ namespace SmtpTests {
             std::chrono::milliseconds timeout = std::chrono::milliseconds(1000)
         );
 
+        bool AwaitBroken(
+            size_t clientIndex,
+            std::chrono::milliseconds timeout = std::chrono::milliseconds(1000)
+        );
+
         bool EstablishConnection(bool useTls);
 
         bool EstablishConnectionPrepareToSend(bool verifyMessageReadyToBeSent = true);
