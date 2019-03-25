@@ -124,7 +124,7 @@ namespace Smtp {
          * This is used to protect the other properties of this structure
          * when accessed simultaneously by multiple threads.
          */
-        std::mutex mutex;
+        std::recursive_mutex mutex;
 
         /**
          * These are the SMTP extensions registered for use by the client.
@@ -220,7 +220,6 @@ namespace Smtp {
          *     are returned.
          */
         ReadyOrBrokenPromises SwapOutReadyOrBrokenPromises() {
-            std::lock_guard< decltype(mutex) > lock(mutex);
             ReadyOrBrokenPromises promisesReturned;
             promisesReturned.swap(readyOrBrokenPromises);
             return promisesReturned;
@@ -234,7 +233,9 @@ namespace Smtp {
             for (auto& promise: promises) {
                 promise.set_value(false);
             }
-            serverConnection->Close();
+            if (serverConnection != nullptr) {
+                serverConnection->Close();
+            }
         }
 
         /**
@@ -483,6 +484,7 @@ namespace Smtp {
          *     This holds the raw bytes received from the transport layer.
          */
         void OnMessageReceived(const std::vector< uint8_t >& message) {
+            std::lock_guard< decltype(mutex) > lock(mutex);
             const auto lines = AssembleLinesReceived(message);
             if (lines.empty()) {
                 return;
@@ -633,6 +635,7 @@ namespace Smtp {
          *     without being reset by the peer.
          */
         void OnBroken(bool graceful) {
+            std::lock_guard< decltype(mutex) > lock(mutex);
             OnHardFailure();
         }
 
