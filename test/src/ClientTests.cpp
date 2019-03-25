@@ -443,4 +443,11 @@ namespace SmtpTests {
         );
     }
 
+    TEST_F(ClientTests, Disconnect) {
+        StartServer(false);
+        ASSERT_TRUE(EstablishConnection(false));
+        client.Disconnect();
+        EXPECT_TRUE(AwaitBroken(0));
+    }
+
 }

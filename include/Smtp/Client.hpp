@@ -337,6 +337,11 @@ namespace Smtp {
         );
 
         /**
+         * Close any open connection to the SMTP server.
+         */
+        void Disconnect();
+
+        /**
          * Asynchronously initiate the sending of an e-mail through
          * the SMTP server.
          *

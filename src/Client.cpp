@@ -756,6 +756,10 @@ namespace Smtp {
         );
     }
 
+    void Client::Disconnect() {
+        impl_->serverConnection = nullptr;
+    }
+
     std::future< bool > Client::SendMail(
         const MessageHeaders::MessageHeaders& headers,
         const std::string& body
