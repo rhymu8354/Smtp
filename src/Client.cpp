@@ -743,6 +743,7 @@ namespace Smtp {
     ) {
         auto impl(impl_);
         return std::async(
+            std::launch::async,
             [
                 impl,
                 serverHostName,
