@@ -6,6 +6,7 @@
  * © 2019 by Richard Walters
  */
 
+#include <algorithm>
 #include <chrono>
 #include <functional>
 #include <future>
@@ -339,7 +340,7 @@ namespace Smtp {
                 auto cr = std::find(
                     dataReceived.begin(),
                     dataReceived.end(),
-                    '\r'
+                    (uint8_t)'\r'
                 );
                 if (
                     (cr == dataReceived.end())
