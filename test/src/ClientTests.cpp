@@ -188,7 +188,7 @@ namespace SmtpTests {
         SendTextMessage(connection, "550 Go away, you smell\r\n");
         EXPECT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_FALSE(sendWasCompleted.get());
-        EXPECT_TRUE(FutureReady(readyOrBroken));
+        EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
         EXPECT_TRUE(readyOrBroken.get());
     }
 
@@ -219,7 +219,7 @@ namespace SmtpTests {
         SendTextMessage(connection, "550 No such user here\r\n"); // response to RCPT TO:<bob@example.com>
         EXPECT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_FALSE(sendWasCompleted.get());
-        EXPECT_TRUE(FutureReady(readyOrBroken));
+        EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
         EXPECT_TRUE(readyOrBroken.get());
     }
 
@@ -254,7 +254,7 @@ namespace SmtpTests {
         SendTextMessage(connection, "550 No such user\r\n"); // response to RCPT TO:<carol@example.com>
         EXPECT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_FALSE(sendWasCompleted.get());
-        EXPECT_TRUE(FutureReady(readyOrBroken));
+        EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
         EXPECT_TRUE(readyOrBroken.get());
     }
 
@@ -300,7 +300,7 @@ namespace SmtpTests {
         SendTextMessage(connection, "500 Go away, you smell\r\n"); // response to DATA
         ASSERT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_FALSE(sendWasCompleted.get());
-        EXPECT_TRUE(FutureReady(readyOrBroken));
+        EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
         EXPECT_TRUE(readyOrBroken.get());
     }
 
@@ -319,7 +319,7 @@ namespace SmtpTests {
         SendTextMessage(connection, "250 OK\r\n"); // response to headers/body
         ASSERT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_TRUE(sendWasCompleted.get());
-        EXPECT_TRUE(FutureReady(readyOrBroken));
+        EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
         EXPECT_TRUE(readyOrBroken.get());
     }
 
@@ -338,7 +338,7 @@ namespace SmtpTests {
         SendTextMessage(connection, "500 Go away, you smell\r\n"); // response to headers/body
         ASSERT_TRUE(FutureReady(sendWasCompleted, std::chrono::milliseconds(1000)));
         EXPECT_FALSE(sendWasCompleted.get());
-        EXPECT_TRUE(FutureReady(readyOrBroken));
+        EXPECT_TRUE(FutureReady(readyOrBroken, std::chrono::milliseconds(1000)));
         EXPECT_TRUE(readyOrBroken.get());
     }
 
