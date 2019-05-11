@@ -230,6 +230,10 @@ namespace Smtp {
          * Handle a failure in communication with the SMTP server.
          */
         void OnHardFailure() {
+            diagnosticsSender.SendDiagnosticInformationString(
+                SystemAbstractions::DiagnosticsSender::Levels::WARNING,
+                "hard failure"
+            );
             auto promises = SwapOutReadyOrBrokenPromises();
             for (auto& promise: promises) {
                 promise.set_value(false);
@@ -388,7 +392,7 @@ namespace Smtp {
             for (const auto& line: lines) {
                 if (!activeExtension) {
                     diagnosticsSender.SendDiagnosticInformationString(
-                        1,
+                        3,
                         "S: " + line.substr(0, line.length() - 2)
                     );
                 }
@@ -449,7 +453,7 @@ namespace Smtp {
          */
         void SendMessageDirectly(const std::string& message) {
             diagnosticsSender.SendDiagnosticInformationString(
-                1,
+                3,
                 "C: " + message.substr(0, message.length() - 2)
             );
             SendMessageDirectlyWithoutLogging(message);
@@ -504,6 +508,10 @@ namespace Smtp {
                     ) {
                         continue;
                     } else {
+                        diagnosticsSender.SendDiagnosticInformationString(
+                            SystemAbstractions::DiagnosticsSender::Levels::WARNING,
+                            "Error processing server message through extension"
+                        );
                         OnHardFailure();
                         return;
                     }
@@ -683,6 +691,10 @@ namespace Smtp {
                 if (self == nullptr) {
                     return;
                 }
+                self->diagnosticsSender.SendDiagnosticInformationString(
+                    3,
+                    "Connection to SMTP server broken"
+                );
                 self->OnBroken(graceful);
             };
             if (
@@ -691,6 +703,10 @@ namespace Smtp {
                     brokenDelegate
                 )
             ) {
+                diagnosticsSender.SendDiagnosticInformationString(
+                    SystemAbstractions::DiagnosticsSender::Levels::WARNING,
+                    "Unable to process connection to SMTP server"
+                );
                 return false;
             }
             return true;
