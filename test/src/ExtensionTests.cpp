@@ -28,11 +28,16 @@ namespace {
         // Properties
 
         std::string parameters;
+        bool wasReset = false;
 
         // Smtp::Client::Extension
 
-        virtual void Configure(const std::string& parameters) {
+        virtual void Configure(const std::string& parameters) override {
             this->parameters = parameters;
+        }
+
+        virtual void Reset() override {
+            wasReset = true;
         }
 
         virtual std::string ModifyMessage(
@@ -303,6 +308,14 @@ namespace SmtpTests {
         client.RegisterExtension("FOO", extension);
         ASSERT_TRUE(EstablishConnectionPrepareToSend());
         EXPECT_EQ("Poggers", extension->parameters);
+    }
+
+    TEST_F(ExtensionTests, ExtensionResetAtStart) {
+        const auto extension = std::make_shared< FooExtension >();
+        client.RegisterExtension("FOO", extension);
+        StartServer(false);
+        ASSERT_TRUE(EstablishConnection(false));
+        EXPECT_TRUE(extension->wasReset);
     }
 
 }

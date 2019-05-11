@@ -69,6 +69,9 @@ namespace Smtp {
     void Client::Extension::Configure(const std::string& parameters) {
     }
 
+    void Client::Extension::Reset() {
+    }
+
     std::string Client::Extension::ModifyMessage(
         const MessageContext& context,
         const std::string& input
@@ -665,6 +668,9 @@ namespace Smtp {
             const std::string& serverHostName,
             const uint16_t serverPortNumber
         ) {
+            for (auto& extension: extensions) {
+                extension.second->Reset();
+            }
             serverConnection = transport->Connect(serverHostName, serverPortNumber);
             if (serverConnection == nullptr) {
                 diagnosticsSender.SendDiagnosticInformationString(

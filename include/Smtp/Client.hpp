@@ -136,6 +136,11 @@ namespace Smtp {
             virtual void Configure(const std::string& parameters);
 
             /**
+             * Reset the extension for use in a new message transaction.
+             */
+            virtual void Reset();
+
+            /**
              * Allow the extension to modify the given message about to be sent
              * from the client to the server.
              *
