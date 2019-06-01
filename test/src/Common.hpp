@@ -8,6 +8,7 @@
  */
 
 #include <algorithm>
+#include <condition_variable>
 #include <future>
 #include <gtest/gtest.h>
 #include <memory>
