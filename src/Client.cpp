@@ -20,7 +20,7 @@
 #include <sstream>
 #include <stddef.h>
 #include <stdio.h>
-#include <SystemAbstractions/StringExtensions.hpp>
+#include <StringExtensions/StringExtensions.hpp>
 #include <thread>
 #include <vector>
 
@@ -516,7 +516,7 @@ namespace Smtp {
                         if (parsedMessage.code == 220) {
                             const auto address = serverConnection->GetBoundAddress();
                             SendMessageDirectly(
-                                SystemAbstractions::sprintf(
+                                StringExtensions::sprintf(
                                     "EHLO [%" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8 "]\r\n",
                                     (uint8_t)((address >> 24) & 0xff),
                                     (uint8_t)((address >> 16) & 0xff),
@@ -709,7 +709,7 @@ namespace Smtp {
             const auto nextRecipient = recipients.front();
             recipients.pop();
             SendMessageThroughExtensions(
-                SystemAbstractions::sprintf(
+                StringExtensions::sprintf(
                     "RCPT TO:%s",
                     nextRecipient.c_str()
                 )
@@ -783,7 +783,7 @@ namespace Smtp {
             impl_->headers = headers;
             impl_->body = ProcessBody(body);
             impl_->SendMessageThroughExtensions(
-                SystemAbstractions::sprintf(
+                StringExtensions::sprintf(
                     "MAIL FROM:%s",
                     headers.GetHeaderValue("From").c_str()
                 )
